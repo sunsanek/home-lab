@@ -115,6 +115,13 @@ function chartModel(points,key,unit='%',digits=1,w=760,h=220,padLeft=48,padRight
     const d=new Date(raw);
     if(Number.isNaN(d.getTime()))return '';
 
+    if(historyHours>=168){
+      return d.toLocaleString(
+        'ru-RU',
+        {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}
+      );
+    }
+
     return d.toLocaleTimeString(
       'ru-RU',
       {hour:'2-digit',minute:'2-digit'}
@@ -182,25 +189,29 @@ function chartCard(title,key,unit='%',digits=1){
         <path class="chart-gridline" d="M48 18H744 M48 110H744 M48 190H744"></path>
         <path class="chart-line" d="${model.path}"></path>
         <circle cx="${model.last.x.toFixed(1)}" cy="${model.last.y.toFixed(1)}" r="4"></circle>
-        <text x="4" y="22" style="font-size:11px">${model.fmt(model.max)}</text>
-        <text x="4" y="114" style="font-size:11px">${model.fmt(model.mid)}</text>
-        <text x="4" y="194" style="font-size:11px">${model.fmt(model.min)}</text>
+        <text class="chart-axis-label" x="4" y="22">${model.fmt(model.max)}</text>
+        <text class="chart-axis-label" x="4" y="114">${model.fmt(model.mid)}</text>
+        <text class="chart-axis-label" x="4" y="194">${model.fmt(model.min)}</text>
         ${model.timeTicks.map(t=>`
           <line
             x1="${t.x.toFixed(1)}"
             y1="190"
             x2="${t.x.toFixed(1)}"
             y2="194"
-            class="chart-gridline"
+            class="chart-axis-tick"
           ></line>
           <text
+            class="chart-time-label"
             x="${t.x.toFixed(1)}"
             y="214"
             text-anchor="middle"
-            style="font-size:10px"
           >${t.label}</text>
         `).join('')}
-        <text x="${Math.min(700,Math.max(58,model.last.x-20)).toFixed(1)}" y="${Math.max(12,model.last.y-8).toFixed(1)}" style="font-size:12px;font-weight:700">${value(model.last.v)}</text>
+        <text
+          class="chart-current-label"
+          x="${Math.min(700,Math.max(58,model.last.x-20)).toFixed(1)}"
+          y="${Math.max(12,model.last.y-8).toFixed(1)}"
+        >${value(model.last.v)}</text>
       </svg>
     `:`<div class="chart-empty">Пока нет истории. Новые измерения появятся автоматически.</div>`}
   </div>`;
