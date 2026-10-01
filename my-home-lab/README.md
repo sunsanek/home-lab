@@ -25,3 +25,4 @@
 - Не отправляй root-пароль в чат.
 - Для панели желательно включить Cloudflare Access, прежде чем добавлять чувствительные данные.
 Cloudflare D1 connected.
+Cloudflare D1 connected.
