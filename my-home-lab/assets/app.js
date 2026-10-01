@@ -72,6 +72,7 @@ function chartModel(points,key,unit='%',digits=1,w=760,h=220,padLeft=48,padRight
   if(!vals.length)return null;
 
   let min=Math.min(...vals), max=Math.max(...vals);
+
   if(unit==='%'){
     min=0;
     max=100;
@@ -81,6 +82,7 @@ function chartModel(points,key,unit='%',digits=1,w=760,h=220,padLeft=48,padRight
     min=Math.max(0,min-margin);
     max=max+margin;
   }
+
   if(max===min)max=min+1;
 
   const plotW=w-padLeft-padRight;
@@ -90,29 +92,65 @@ function chartModel(points,key,unit='%',digits=1,w=760,h=220,padLeft=48,padRight
   const coords=points.map((p,i)=>{
     const v=Number(p[key]);
     if(!Number.isFinite(v))return null;
+
     const x=padLeft+(i/Math.max(1,points.length-1))*plotW;
     const y=padTop+((max-v)/span)*plotH;
+
     return {x,y,v,p};
   }).filter(Boolean);
 
   if(!coords.length)return null;
 
-  const path=coords.map((c,i)=>`${i?'L':'M'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const path=coords
+    .map((c,i)=>`${i?'L':'M'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+    .join(' ');
+
   const mid=min+(max-min)/2;
   const fmt=v=>Number(v).toFixed(digits)+unit;
 
-  const first=coords[0], last=coords[coords.length-1];
   const timeOf=p=>{
     const raw=p?.updated_at??p?.timestamp??p?.ts??p?.time;
     if(raw==null)return '';
+
     const d=new Date(raw);
-    return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    if(Number.isNaN(d.getTime()))return '';
+
+    return d.toLocaleTimeString(
+      'ru-RU',
+      {hour:'2-digit',minute:'2-digit'}
+    );
   };
 
+  // До 5 подписей времени равномерно по всей оси X.
+  const timeTicks=[];
+  const tickCount=Math.min(5,coords.length);
+
+  for(let i=0;i<tickCount;i++){
+    const index=Math.round(
+      i*(coords.length-1)/Math.max(1,tickCount-1)
+    );
+
+    const point=coords[index];
+    const label=timeOf(point.p);
+
+    if(label){
+      timeTicks.push({
+        x:point.x,
+        label
+      });
+    }
+  }
+
   return {
-    path,min,max,mid,fmt,coords,first,last,
-    firstTime:timeOf(first.p),
-    lastTime:timeOf(last.p)
+    path,
+    min,
+    max,
+    mid,
+    fmt,
+    coords,
+    first:coords[0],
+    last:coords[coords.length-1],
+    timeTicks
   };
 }
 
@@ -147,8 +185,21 @@ function chartCard(title,key,unit='%',digits=1){
         <text x="4" y="22" style="font-size:11px">${model.fmt(model.max)}</text>
         <text x="4" y="114" style="font-size:11px">${model.fmt(model.mid)}</text>
         <text x="4" y="194" style="font-size:11px">${model.fmt(model.min)}</text>
-        ${model.firstTime?`<text x="48" y="214" style="font-size:10px">${model.firstTime}</text>`:''}
-        ${model.lastTime?`<text x="744" y="214" text-anchor="end" style="font-size:10px">${model.lastTime}</text>`:''}
+        ${model.timeTicks.map(t=>`
+          <line
+            x1="${t.x.toFixed(1)}"
+            y1="190"
+            x2="${t.x.toFixed(1)}"
+            y2="194"
+            class="chart-gridline"
+          ></line>
+          <text
+            x="${t.x.toFixed(1)}"
+            y="214"
+            text-anchor="middle"
+            style="font-size:10px"
+          >${t.label}</text>
+        `).join('')}
         <text x="${Math.min(700,Math.max(58,model.last.x-20)).toFixed(1)}" y="${Math.max(12,model.last.y-8).toFixed(1)}" style="font-size:12px;font-weight:700">${value(model.last.v)}</text>
       </svg>
     `:`<div class="chart-empty">Пока нет истории. Новые измерения появятся автоматически.</div>`}
