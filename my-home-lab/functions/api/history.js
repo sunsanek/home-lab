@@ -9,7 +9,7 @@ export async function onRequestGet({ request, env }) {
   const limit = hours <= 24 ? 1500 : 2500;
 
   const result = await env.HOME_LAB_DB.prepare(`
-    SELECT recorded_at, cpu, ram, temperature, root_used, storage_used
+    SELECT recorded_at AS updated_at, cpu, ram, temperature, root_used, storage_used
     FROM metric_history
     WHERE recorded_at >= datetime('now', ?)
     ORDER BY recorded_at ASC
