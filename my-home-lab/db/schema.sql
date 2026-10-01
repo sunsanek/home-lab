@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS metrics (
+  id INTEGER PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

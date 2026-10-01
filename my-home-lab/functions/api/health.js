@@ -1,13 +1,7 @@
-export async function onRequestGet() {
+export async function onRequestGet({ env }) {
   return Response.json({
     ok: true,
-    mode: 'demo',
-    timestamp: new Date().toISOString(),
-    services: {
-      proxmox: 'online',
-      homeAssistant: 'online',
-      vpn: 'online',
-      immich: 'online'
-    }
+    mode: env.HOME_LAB_DB ? 'configured' : 'demo',
+    timestamp: new Date().toISOString()
   });
 }

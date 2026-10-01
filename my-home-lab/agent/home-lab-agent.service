@@ -1,0 +1,14 @@
+[Unit]
+Description=My Home Lab Proxmox Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/home-lab-agent.env
+ExecStart=/usr/bin/python3 /opt/home-lab-agent/home_lab_agent.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
