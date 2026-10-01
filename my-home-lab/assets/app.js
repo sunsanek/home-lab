@@ -4,6 +4,9 @@ const data={
 };
 const demo={cpu:18,ram:43,temp:57,storage:82,uptime:'17 дн. 06 ч.',vpnPing:42,ha:37,backup:'18 ч. назад'};
 let live=null;
+let historyData=[];
+let historyHours=24;
+let historyLoading=false;
 const el=s=>document.querySelector(s);
 function storagePercent(path='/Storage'){return live?.storage?.[path]?.used_percent ?? (path==='/'?21:demo.storage);}
 function vmlist(){return live?.vms || [];}
@@ -64,6 +67,52 @@ function overview(){
   <div class="section-title">Ресурсы Proxmox</div><div class="grid three"><div class="card"><div class="stat-top"><span>CPU</span><span>${cpu}%</span></div><div class="meter"><span style="width:${pct(cpu)}%"></span></div></div><div class="card"><div class="stat-top"><span>RAM</span><span>${ram}%</span></div><div class="meter"><span style="width:${pct(ram)}%"></span></div></div><div class="card"><div class="stat-top"><span>/Storage</span><span>${storage}%</span></div><div class="meter"><span style="width:${pct(storage)}%"></span></div></div></div>
   <div class="section-title">Хост</div><div class="card"><div class="row"><span>Hostname</span><strong>${live?.host||'pve'}</strong></div><div class="row"><span>Uptime</span><span class="muted">${live?.uptime||demo.uptime}</span></div><div class="row"><span>Корневой диск</span><span class="muted">${live?.storage?.['/']?.used_gb??'—'} / ${live?.storage?.['/']?.total_gb??'—'} GB · ${storagePercent('/')}%</span></div><div class="row"><span>Последнее обновление</span><span class="muted">${live?.updated_at?new Date(live.updated_at).toLocaleString('ru-RU'):'—'}</span></div></div>`;
 }
+function chartPath(points,key,w=760,h=190,pad=28){
+  if(!points.length)return '';
+  const vals=points.map(p=>Number(p[key])).filter(Number.isFinite);
+  if(!vals.length)return '';
+  const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
+  return points.map((p,i)=>{
+    const v=Number(p[key]);
+    if(!Number.isFinite(v))return null;
+    const x=pad+(i/Math.max(1,points.length-1))*(w-pad*2);
+    const y=h-pad-((v-min)/span)*(h-pad*2);
+    return `${i?'L':'M'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).filter(Boolean).join(' ');
+}
+function chartCard(title,key,unit='%',digits=1){
+  const vals=historyData.map(p=>Number(p[key])).filter(Number.isFinite);
+  const current=vals.length?vals[vals.length-1]:null;
+  const path=chartPath(historyData,key);
+  return `<div class="card history-card"><div class="chart-head"><div><strong>${title}</strong><div class="muted">последнее: ${current==null?'—':current.toFixed(digits)+unit}</div></div></div>
+  ${path?`<svg class="history-svg" viewBox="0 0 760 190" preserveAspectRatio="none"><path class="chart-gridline" d="M28 28H732 M28 95H732 M28 162H732"></path><path class="chart-line" d="${path}"></path></svg>`:`<div class="chart-empty">Пока нет истории. Новые измерения появятся автоматически.</div>`}</div>`;
+}
+function historyBlock(){
+  return `<div class="section-title">История ресурсов</div>
+  <div class="history-toolbar">
+    <button class="range-btn ${historyHours===1?'active':''}" onclick="setHistoryHours(1)">1 ч</button>
+    <button class="range-btn ${historyHours===6?'active':''}" onclick="setHistoryHours(6)">6 ч</button>
+    <button class="range-btn ${historyHours===24?'active':''}" onclick="setHistoryHours(24)">24 ч</button>
+    <button class="range-btn ${historyHours===168?'active':''}" onclick="setHistoryHours(168)">7 дней</button>
+    <span class="muted history-note">${historyLoading?'загрузка…':`${historyData.length} измерений`}</span>
+  </div>
+  <div class="grid two">${chartCard('CPU','cpu')}${chartCard('RAM','ram')}</div>
+  <div class="grid two">${chartCard('Температура','temperature','°C',0)}${chartCard('/Storage','storage_used')}</div>`;
+}
+async function loadHistory(hours=historyHours){
+  historyLoading=true;
+  try{
+    const r=await fetch(`/api/history?hours=${hours}`,{cache:'no-store'});
+    const j=await r.json();
+    historyData=Array.isArray(j.points)?j.points:[];
+  }catch(e){historyData=[];}
+  historyLoading=false;
+  if(location.hash==='#proxmox') render();
+}
+function setHistoryHours(hours){
+  historyHours=hours;
+  loadHistory(hours);
+}
 function proxmox(){
   const rows=sortedVms();
   const vmRows=rows.length?rows.map(r=>`<tr>
@@ -90,7 +139,7 @@ function proxmox(){
       <tbody>${vmRows}</tbody>
     </table>
   </div>
-  <div class="section-title">Storage</div><div class="grid two"><div class="card"><div class="row"><span>/Storage</span><strong>${storagePercent()}%</strong></div><div class="meter"><span style="width:${pct(storagePercent())}%"></span></div>${live?.storage?.['/Storage']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB</span></div>`:''}</div><div class="card"><div class="row"><span>/</span><strong>${storagePercent('/')}%</strong></div><div class="meter"><span style="width:${pct(storagePercent('/'))}%"></span></div>${live?.storage?.['/']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/'].used_gb} / ${live.storage['/'].total_gb} GB</span></div>`:''}</div></div>`;
+  <div class="section-title">Storage</div><div class="grid two"><div class="card"><div class="row"><span>/Storage</span><strong>${storagePercent()}%</strong></div><div class="meter"><span style="width:${pct(storagePercent())}%"></span></div>${live?.storage?.['/Storage']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB</span></div>`:''}</div><div class="card"><div class="row"><span>/</span><strong>${storagePercent('/')}%</strong></div><div class="meter"><span style="width:${pct(storagePercent('/'))}%"></span></div>${live?.storage?.['/']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/'].used_gb} / ${live.storage['/'].total_gb} GB</span></div>`:''}</div></div>${historyBlock()}
 }
 
 function network(){return `<div class="grid stats">${stat('VPN Germany',demo.vpnPing+' ms','WireGuard')}${stat('VPN Home','18 ms','WireGuard')}${stat('DNS','OK','AdGuard Home')}${stat('ZeroTier','ONLINE','mesh')}</div><div class="notice">Сетевые проверки пока статические. Следующим этапом подключим реальные ping/handshake и доступность сервисов.</div><div class="section-title">Маршрутизация</div><div class="card"><table class="table"><thead><tr><th>Назначение</th><th>Маршрут</th><th>Состояние</th></tr></thead><tbody><tr><td>YouTube</td><td>VPN 1</td><td><span class="pill">OK</span></td></tr><tr><td>ChatGPT</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Telegram</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Остальной трафик</td><td>DIRECT</td><td><span class="pill">OK</span></td></tr></tbody></table></div><div class="section-title">Диагностика</div><div class="card health-list">${health('WireGuard DE','проверка будет подключена')}${health('WireGuard Home','проверка будет подключена')}${health('AdGuard','LXC 105 · running')}${health('ZeroTier','проверка будет подключена')}</div>`}
@@ -120,4 +169,5 @@ document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>go(b.dataset.pag
 el('#themeBtn').onclick=()=>document.body.classList.toggle('light');
 window.go=go;
 window.sortProxmox=sortProxmox;
-render();loadLive();setInterval(loadLive,60000);
+window.setHistoryHours=setHistoryHours;
+render();loadLive();loadHistory(24);setInterval(loadLive,60000);setInterval(()=>loadHistory(historyHours),60000);

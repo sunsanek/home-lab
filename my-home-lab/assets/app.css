@@ -11,3 +11,15 @@
 .sortable-table th.sortable:hover{background:rgba(255,255,255,.04)}
 .sort-arrow{display:inline-block;width:14px;margin-left:5px;color:#8ea2ff;font-weight:700}
 .table-hint{font-size:11px;color:var(--muted);padding:0 0 10px}
+
+.history-toolbar{display:flex;gap:7px;align-items:center;margin:-6px 0 12px}
+.range-btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;padding:7px 11px;cursor:pointer;font-size:12px}
+.range-btn:hover{background:rgba(255,255,255,.05)}
+.range-btn.active{border-color:#7d8cff;background:rgba(125,140,255,.12)}
+.history-note{margin-left:4px;font-size:11px}
+.history-card{min-height:235px}
+.chart-head{display:flex;justify-content:space-between;margin-bottom:8px}
+.history-svg{width:100%;height:190px;display:block}
+.chart-gridline{stroke:rgba(255,255,255,.08);stroke-width:1}
+.chart-line{fill:none;stroke:#8ea2ff;stroke-width:2.5;vector-effect:non-scaling-stroke}
+.chart-empty{height:190px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center}
