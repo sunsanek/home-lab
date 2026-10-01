@@ -67,25 +67,92 @@ function overview(){
   <div class="section-title">Ресурсы Proxmox</div><div class="grid three"><div class="card"><div class="stat-top"><span>CPU</span><span>${cpu}%</span></div><div class="meter"><span style="width:${pct(cpu)}%"></span></div></div><div class="card"><div class="stat-top"><span>RAM</span><span>${ram}%</span></div><div class="meter"><span style="width:${pct(ram)}%"></span></div></div><div class="card"><div class="stat-top"><span>/Storage</span><span>${storage}%</span></div><div class="meter"><span style="width:${pct(storage)}%"></span></div></div></div>
   <div class="section-title">Хост</div><div class="card"><div class="row"><span>Hostname</span><strong>${live?.host||'pve'}</strong></div><div class="row"><span>Uptime</span><span class="muted">${live?.uptime||demo.uptime}</span></div><div class="row"><span>Корневой диск</span><span class="muted">${live?.storage?.['/']?.used_gb??'—'} / ${live?.storage?.['/']?.total_gb??'—'} GB · ${storagePercent('/')}%</span></div><div class="row"><span>Последнее обновление</span><span class="muted">${live?.updated_at?new Date(live.updated_at).toLocaleString('ru-RU'):'—'}</span></div></div>`;
 }
-function chartPath(points,key,w=760,h=190,pad=28){
-  if(!points.length)return '';
+function chartModel(points,key,unit='%',digits=1,w=760,h=220,padLeft=48,padRight=16,padTop=18,padBottom=30){
   const vals=points.map(p=>Number(p[key])).filter(Number.isFinite);
-  if(!vals.length)return '';
-  const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
-  return points.map((p,i)=>{
+  if(!vals.length)return null;
+
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(unit==='%'){
+    min=0;
+    max=100;
+  }else{
+    const span=Math.max(1,max-min);
+    const margin=span*0.12;
+    min=Math.max(0,min-margin);
+    max=max+margin;
+  }
+  if(max===min)max=min+1;
+
+  const plotW=w-padLeft-padRight;
+  const plotH=h-padTop-padBottom;
+  const span=max-min;
+
+  const coords=points.map((p,i)=>{
     const v=Number(p[key]);
     if(!Number.isFinite(v))return null;
-    const x=pad+(i/Math.max(1,points.length-1))*(w-pad*2);
-    const y=h-pad-((v-min)/span)*(h-pad*2);
-    return `${i?'L':'M'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).filter(Boolean).join(' ');
+    const x=padLeft+(i/Math.max(1,points.length-1))*plotW;
+    const y=padTop+((max-v)/span)*plotH;
+    return {x,y,v,p};
+  }).filter(Boolean);
+
+  if(!coords.length)return null;
+
+  const path=coords.map((c,i)=>`${i?'L':'M'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const mid=min+(max-min)/2;
+  const fmt=v=>Number(v).toFixed(digits)+unit;
+
+  const first=coords[0], last=coords[coords.length-1];
+  const timeOf=p=>{
+    const raw=p?.updated_at??p?.timestamp??p?.ts??p?.time;
+    if(raw==null)return '';
+    const d=new Date(raw);
+    return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+  };
+
+  return {
+    path,min,max,mid,fmt,coords,first,last,
+    firstTime:timeOf(first.p),
+    lastTime:timeOf(last.p)
+  };
 }
+
 function chartCard(title,key,unit='%',digits=1){
   const vals=historyData.map(p=>Number(p[key])).filter(Number.isFinite);
   const current=vals.length?vals[vals.length-1]:null;
-  const path=chartPath(historyData,key);
-  return `<div class="card history-card"><div class="chart-head"><div><strong>${title}</strong><div class="muted">последнее: ${current==null?'—':current.toFixed(digits)+unit}</div></div></div>
-  ${path?`<svg class="history-svg" viewBox="0 0 760 190" preserveAspectRatio="none"><path class="chart-gridline" d="M28 28H732 M28 95H732 M28 162H732"></path><path class="chart-line" d="${path}"></path></svg>`:`<div class="chart-empty">Пока нет истории. Новые измерения появятся автоматически.</div>`}</div>`;
+  const min=vals.length?Math.min(...vals):null;
+  const max=vals.length?Math.max(...vals):null;
+  const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  const model=chartModel(historyData,key,unit,digits);
+
+  const value=v=>v==null?'—':Number(v).toFixed(digits)+unit;
+  const statBox=(label,v)=>`<div style="padding:8px 12px;border:1px solid var(--border);border-radius:10px;min-width:88px"><div class="muted" style="font-size:10px">${label}</div><strong style="font-size:16px">${value(v)}</strong></div>`;
+
+  return `<div class="card history-card">
+    <div class="chart-head">
+      <div>
+        <strong>${title}</strong>
+        <div class="muted">текущее: ${value(current)}</div>
+      </div>
+    </div>
+    ${model?`
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px">
+        ${statBox('МИН',min)}
+        ${statBox('СРЕДНЕЕ',avg)}
+        ${statBox('МАКС',max)}
+      </div>
+      <svg class="history-svg" viewBox="0 0 760 220" preserveAspectRatio="none" aria-label="${title}">
+        <path class="chart-gridline" d="M48 18H744 M48 110H744 M48 190H744"></path>
+        <path class="chart-line" d="${model.path}"></path>
+        <circle cx="${model.last.x.toFixed(1)}" cy="${model.last.y.toFixed(1)}" r="4"></circle>
+        <text x="4" y="22" style="font-size:11px">${model.fmt(model.max)}</text>
+        <text x="4" y="114" style="font-size:11px">${model.fmt(model.mid)}</text>
+        <text x="4" y="194" style="font-size:11px">${model.fmt(model.min)}</text>
+        ${model.firstTime?`<text x="48" y="214" style="font-size:10px">${model.firstTime}</text>`:''}
+        ${model.lastTime?`<text x="744" y="214" text-anchor="end" style="font-size:10px">${model.lastTime}</text>`:''}
+        <text x="${Math.min(700,Math.max(58,model.last.x-20)).toFixed(1)}" y="${Math.max(12,model.last.y-8).toFixed(1)}" style="font-size:12px;font-weight:700">${value(model.last.v)}</text>
+      </svg>
+    `:`<div class="chart-empty">Пока нет истории. Новые измерения появятся автоматически.</div>`}
+  </div>`;
 }
 function historyBlock(){
   return `<div class="section-title">История ресурсов</div>
