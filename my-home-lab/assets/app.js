@@ -142,7 +142,206 @@ function proxmox(){
   <div class="section-title">Storage</div><div class="grid two"><div class="card"><div class="row"><span>/Storage</span><strong>${storagePercent()}%</strong></div><div class="meter"><span style="width:${pct(storagePercent())}%"></span></div>${live?.storage?.['/Storage']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB</span></div>`:''}</div><div class="card"><div class="row"><span>/</span><strong>${storagePercent('/')}%</strong></div><div class="meter"><span style="width:${pct(storagePercent('/'))}%"></span></div>${live?.storage?.['/']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/'].used_gb} / ${live.storage['/'].total_gb} GB</span></div>`:''}</div></div>${historyBlock()}`;
 }
 
-function network(){return `<div class="grid stats">${stat('VPN Germany',demo.vpnPing+' ms','WireGuard')}${stat('VPN Home','18 ms','WireGuard')}${stat('DNS','OK','AdGuard Home')}${stat('ZeroTier','ONLINE','mesh')}</div><div class="notice">Сетевые проверки пока статические. Следующим этапом подключим реальные ping/handshake и доступность сервисов.</div><div class="section-title">Маршрутизация</div><div class="card"><table class="table"><thead><tr><th>Назначение</th><th>Маршрут</th><th>Состояние</th></tr></thead><tbody><tr><td>YouTube</td><td>VPN 1</td><td><span class="pill">OK</span></td></tr><tr><td>ChatGPT</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Telegram</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Остальной трафик</td><td>DIRECT</td><td><span class="pill">OK</span></td></tr></tbody></table></div><div class="section-title">Диагностика</div><div class="card health-list">${health('WireGuard DE','проверка будет подключена')}${health('WireGuard Home','проверка будет подключена')}${health('AdGuard','LXC 105 · running')}${health('ZeroTier','проверка будет подключена')}</div>`}
+function network(){
+  const net=live?.network?.keenetic;
+  const internet=net?.internet;
+  const amnezia=net?.amnezia;
+  const warp=net?.warp;
+  const zerotier=net?.zerotier;
+
+  const isOnline=x=>x?.online===true || x?.connected===true;
+  const fmtBytes=v=>{
+    const n=Number(v);
+    if(!Number.isFinite(n)) return '—';
+    if(n>=1024**3) return `${(n/1024**3).toFixed(1)} GB`;
+    if(n>=1024**2) return `${(n/1024**2).toFixed(1)} MB`;
+    return `${(n/1024).toFixed(0)} KB`;
+  };
+
+  const amneziaStatus=isOnline(amnezia)?'ok':'warn';
+  const warpStatus=isOnline(warp)?'ok':'warn';
+  const ztStatus=zerotier?.status==='OK'?'ok':'warn';
+  const internetStatus=internet?.connected?'ok':'warn';
+
+  return `
+    <div class="grid stats">
+      ${stat(
+        'Интернет',
+        internet?.connected?'ONLINE':'OFFLINE',
+        internet?.description||'Keenetic · PPPoE',
+        internetStatus
+      )}
+
+      ${stat(
+        'VPN Germany',
+        isOnline(amnezia)?'ONLINE':'OFFLINE',
+        amnezia?.description||'WireGuard',
+        amneziaStatus
+      )}
+
+      ${stat(
+        'WARP',
+        isOnline(warp)?'ONLINE':'OFF',
+        warp?.description||'WireGuard',
+        warpStatus
+      )}
+
+      ${stat(
+        'ZeroTier',
+        zerotier?.status==='OK'?'ONLINE':'OFFLINE',
+        zerotier?.network_name||'mesh',
+        ztStatus
+      )}
+    </div>
+
+    <div class="section-title">Keenetic · VPN Germany</div>
+
+    <div class="card">
+      <div class="row">
+        <span>Состояние</span>
+        <strong>${isOnline(amnezia)?'ONLINE':'OFFLINE'}</strong>
+      </div>
+
+      <div class="row">
+        <span>Интерфейс</span>
+        <span class="muted">${amnezia?.description||'—'}</span>
+      </div>
+
+      <div class="row">
+        <span>Локальный IP</span>
+        <span class="muted">${amnezia?.address||'—'}</span>
+      </div>
+
+      <div class="row">
+        <span>Endpoint</span>
+        <span class="muted">
+          ${amnezia?.remote_endpoint||'—'}${amnezia?.remote_port?':'+amnezia.remote_port:''}
+        </span>
+      </div>
+
+      <div class="row">
+        <span>Последний handshake</span>
+        <span class="muted">
+          ${Number.isFinite(Number(amnezia?.last_handshake))
+            ? `${amnezia.last_handshake} сек. назад`
+            : '—'}
+        </span>
+      </div>
+
+      <div class="row">
+        <span>Передано</span>
+        <span class="muted">↑ ${fmtBytes(amnezia?.tx_bytes)}</span>
+      </div>
+
+      <div class="row">
+        <span>Получено</span>
+        <span class="muted">↓ ${fmtBytes(amnezia?.rx_bytes)}</span>
+      </div>
+    </div>
+
+    <div class="section-title">ZeroTier</div>
+
+    <div class="card">
+      <div class="row">
+        <span>Состояние</span>
+        <strong>${zerotier?.status==='OK'?'ONLINE':'OFFLINE'}</strong>
+      </div>
+
+      <div class="row">
+        <span>Сеть</span>
+        <span class="muted">${zerotier?.network_name||'—'}</span>
+      </div>
+
+      <div class="row">
+        <span>IP</span>
+        <span class="muted">${zerotier?.address||'—'}</span>
+      </div>
+
+      <div class="row">
+        <span>Endpoint</span>
+        <span class="muted">${zerotier?.remote_endpoint||'—'}</span>
+      </div>
+    </div>
+
+    <div class="section-title">Маршрутизация</div>
+
+    <div class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Назначение</th>
+            <th>Маршрут</th>
+            <th>Состояние</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>YouTube</td>
+            <td>VPN 1</td>
+            <td><span class="pill">OK</span></td>
+          </tr>
+          <tr>
+            <td>ChatGPT</td>
+            <td>VPN 2</td>
+            <td><span class="pill">OK</span></td>
+          </tr>
+          <tr>
+            <td>Telegram</td>
+            <td>VPN 2</td>
+            <td><span class="pill">OK</span></td>
+          </tr>
+          <tr>
+            <td>Остальной трафик</td>
+            <td>DIRECT</td>
+            <td><span class="pill">OK</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Диагностика</div>
+
+    <div class="card health-list">
+      ${health(
+        'Internet',
+        internet?.connected
+          ? `${internet.description||'PPPoE'} · ${internet.address||''}`
+          : 'Keenetic · соединение отсутствует',
+        internet?.connected?'ok':'warn'
+      )}
+
+      ${health(
+        'WireGuard Germany',
+        isOnline(amnezia)
+          ? `handshake ${amnezia.last_handshake ?? '—'} сек. · ${amnezia.remote_endpoint||'—'}`
+          : 'VPN отключён',
+        isOnline(amnezia)?'ok':'warn'
+      )}
+
+      ${health(
+        'WARP',
+        isOnline(warp)?'подключён':'выключен',
+        isOnline(warp)?'ok':'warn'
+      )}
+
+      ${health(
+        'ZeroTier',
+        zerotier?.status==='OK'
+          ? `${zerotier.network_name||'mesh'} · ${zerotier.address||'—'}`
+          : 'соединение отсутствует',
+        zerotier?.status==='OK'?'ok':'warn'
+      )}
+
+      ${health(
+        'AdGuard Home',
+        live?.vms?.find(x=>x.id===105)?.status==='running'
+          ? 'LXC 105 · RUNNING'
+          : 'LXC 105 · STOPPED',
+        live?.vms?.find(x=>x.id===105)?.status==='running'?'ok':'warn'
+      )}
+    </div>
+  `;
+}
 function smart(){return `<div class="grid stats">${stat('Устройства',demo.ha,'Home Assistant')}${stat('Свет','8 / 12','включено')}${stat('Zigbee','ONLINE','Sonoff Bridge')}${stat('eWeLink','ONLINE','cloud')}</div><div class="notice">Home Assistant пока не подключён к панели. Следующим этапом получим реальные устройства, температуры, свет и Zigbee.</div><div class="section-title">Дом</div><div class="card health-list">${health('Home Assistant','VM 113 · главный контроллер')}${health('Zigbee','Sonoff Zigbee Bridge')}${health('eWeLink','Sonoff LAN / cloud')}${health('Яндекс','умные устройства')}</div><div class="section-title">Быстрые действия</div><div class="card actions"><button class="action">Выключить свет</button><button class="action">Включить ночной режим</button><button class="action">Перезапустить Zigbee</button><button class="action">Открыть Home Assistant</button></div>`}
 function backup(){return `<div class="grid stats">${stat('Google Drive','OK','rclone')}${stat('Последний backup',demo.backup,'требует внимания','warn')}${stat('Кэш','40 GB','vfs cache')}${stat('Takeout','есть','архивы')}</div><div class="notice">Бэкапы пока не подключены к мониторингу. Сделаем отдельный агент для rclone без передачи содержимого файлов.</div><div class="section-title">История</div><div class="card"><div class="event"><time>03:04</time><span class="dot ok bullet"></span><div><p>Backup завершён</p><small>Google Drive · rclone</small></div></div><div class="event"><time>02:51</time><span class="dot ok bullet"></span><div><p>Immich thumbs синхронизированы</p><small>/Storage/Immich/thumbs</small></div></div></div>`}
 function docker(){return `<div class="grid stats">${stat('Docker','на LXC 102','будет подключён')}${stat('Immich','3 / 3','healthy')}${stat('Postgres','ONLINE','database')}${stat('ML','ONLINE','machine learning')}</div><div class="notice">Docker API пока не передаётся агентом. Подключим его отдельно, чтобы не давать панели права управления контейнерами.</div><div class="section-title">Ожидаемые контейнеры</div><div class="card"><table class="table"><thead><tr><th>Контейнер</th><th>Состояние</th><th>Назначение</th></tr></thead><tbody><tr><td>immich_server</td><td><span class="pill">healthy</span></td><td>Immich</td></tr><tr><td>immich_machine_learning</td><td><span class="pill">healthy</span></td><td>ML</td></tr><tr><td>immich_postgres</td><td><span class="pill">healthy</span></td><td>PostgreSQL</td></tr><tr><td>portainer</td><td><span class="pill">running</span></td><td>Docker management</td></tr></tbody></table></div>`}
