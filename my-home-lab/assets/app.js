@@ -150,6 +150,7 @@ function network(){
   const zerotier=net?.zerotier;
 
   const isOnline=x=>x?.online===true || x?.connected===true;
+
   const fmtBytes=v=>{
     const n=Number(v);
     if(!Number.isFinite(n)) return '—';
@@ -165,136 +166,43 @@ function network(){
 
   return `
     <div class="grid stats">
-      ${stat(
-        'Интернет',
-        internet?.connected?'ONLINE':'OFFLINE',
-        internet?.description||'Keenetic · PPPoE',
-        internetStatus
-      )}
-
-      ${stat(
-        'VPN Germany',
-        isOnline(amnezia)?'ONLINE':'OFFLINE',
-        amnezia?.description||'WireGuard',
-        amneziaStatus
-      )}
-
-      ${stat(
-        'WARP',
-        isOnline(warp)?'ONLINE':'OFF',
-        warp?.description||'WireGuard',
-        warpStatus
-      )}
-
-      ${stat(
-        'ZeroTier',
-        zerotier?.status==='OK'?'ONLINE':'OFFLINE',
-        zerotier?.network_name||'mesh',
-        ztStatus
-      )}
+      ${stat('Интернет',internet?.connected?'ONLINE':'OFFLINE',internet?.description||'Keenetic · PPPoE',internetStatus)}
+      ${stat('VPN Germany',isOnline(amnezia)?'ONLINE':'OFFLINE',amnezia?.description||'WireGuard',amneziaStatus)}
+      ${stat('WARP',isOnline(warp)?'ONLINE':'OFF',warp?.description||'WireGuard',warpStatus)}
+      ${stat('ZeroTier',zerotier?.status==='OK'?'ONLINE':'OFFLINE',zerotier?.network_name||'mesh',ztStatus)}
     </div>
 
     <div class="section-title">Keenetic · VPN Germany</div>
 
     <div class="card">
-      <div class="row">
-        <span>Состояние</span>
-        <strong>${isOnline(amnezia)?'ONLINE':'OFFLINE'}</strong>
-      </div>
-
-      <div class="row">
-        <span>Интерфейс</span>
-        <span class="muted">${amnezia?.description||'—'}</span>
-      </div>
-
-      <div class="row">
-        <span>Локальный IP</span>
-        <span class="muted">${amnezia?.address||'—'}</span>
-      </div>
-
-      <div class="row">
-        <span>Endpoint</span>
-        <span class="muted">
-          ${amnezia?.remote_endpoint||'—'}${amnezia?.remote_port?':'+amnezia.remote_port:''}
-        </span>
-      </div>
-
-      <div class="row">
-        <span>Последний handshake</span>
-        <span class="muted">
-          ${Number.isFinite(Number(amnezia?.last_handshake))
-            ? `${amnezia.last_handshake} сек. назад`
-            : '—'}
-        </span>
-      </div>
-
-      <div class="row">
-        <span>Передано</span>
-        <span class="muted">↑ ${fmtBytes(amnezia?.tx_bytes)}</span>
-      </div>
-
-      <div class="row">
-        <span>Получено</span>
-        <span class="muted">↓ ${fmtBytes(amnezia?.rx_bytes)}</span>
-      </div>
+      <div class="row"><span>Состояние</span><strong>${isOnline(amnezia)?'ONLINE':'OFFLINE'}</strong></div>
+      <div class="row"><span>Интерфейс</span><span class="muted">${amnezia?.description||'—'}</span></div>
+      <div class="row"><span>Локальный IP</span><span class="muted">${amnezia?.address||'—'}</span></div>
+      <div class="row"><span>Endpoint</span><span class="muted">${amnezia?.remote_endpoint||'—'}${amnezia?.remote_port?':'+amnezia.remote_port:''}</span></div>
+      <div class="row"><span>Последний handshake</span><span class="muted">${Number.isFinite(Number(amnezia?.last_handshake))?`${amnezia.last_handshake} сек. назад`:'—'}</span></div>
+      <div class="row"><span>Передано</span><span class="muted">↑ ${fmtBytes(amnezia?.tx_bytes)}</span></div>
+      <div class="row"><span>Получено</span><span class="muted">↓ ${fmtBytes(amnezia?.rx_bytes)}</span></div>
     </div>
 
     <div class="section-title">ZeroTier</div>
 
     <div class="card">
-      <div class="row">
-        <span>Состояние</span>
-        <strong>${zerotier?.status==='OK'?'ONLINE':'OFFLINE'}</strong>
-      </div>
-
-      <div class="row">
-        <span>Сеть</span>
-        <span class="muted">${zerotier?.network_name||'—'}</span>
-      </div>
-
-      <div class="row">
-        <span>IP</span>
-        <span class="muted">${zerotier?.address||'—'}</span>
-      </div>
-
-      <div class="row">
-        <span>Endpoint</span>
-        <span class="muted">${zerotier?.remote_endpoint||'—'}</span>
-      </div>
+      <div class="row"><span>Состояние</span><strong>${zerotier?.status==='OK'?'ONLINE':'OFFLINE'}</strong></div>
+      <div class="row"><span>Сеть</span><span class="muted">${zerotier?.network_name||'—'}</span></div>
+      <div class="row"><span>IP</span><span class="muted">${zerotier?.address||'—'}</span></div>
+      <div class="row"><span>Endpoint</span><span class="muted">${zerotier?.remote_endpoint||'—'}</span></div>
     </div>
 
     <div class="section-title">Маршрутизация</div>
 
     <div class="card">
       <table class="table">
-        <thead>
-          <tr>
-            <th>Назначение</th>
-            <th>Маршрут</th>
-            <th>Состояние</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Назначение</th><th>Маршрут</th><th>Состояние</th></tr></thead>
         <tbody>
-          <tr>
-            <td>YouTube</td>
-            <td>VPN 1</td>
-            <td><span class="pill">OK</span></td>
-          </tr>
-          <tr>
-            <td>ChatGPT</td>
-            <td>VPN 2</td>
-            <td><span class="pill">OK</span></td>
-          </tr>
-          <tr>
-            <td>Telegram</td>
-            <td>VPN 2</td>
-            <td><span class="pill">OK</span></td>
-          </tr>
-          <tr>
-            <td>Остальной трафик</td>
-            <td>DIRECT</td>
-            <td><span class="pill">OK</span></td>
-          </tr>
+          <tr><td>YouTube</td><td>VPN 1</td><td><span class="pill">OK</span></td></tr>
+          <tr><td>ChatGPT</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr>
+          <tr><td>Telegram</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr>
+          <tr><td>Остальной трафик</td><td>DIRECT</td><td><span class="pill">OK</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -302,43 +210,11 @@ function network(){
     <div class="section-title">Диагностика</div>
 
     <div class="card health-list">
-      ${health(
-        'Internet',
-        internet?.connected
-          ? `${internet.description||'PPPoE'} · ${internet.address||''}`
-          : 'Keenetic · соединение отсутствует',
-        internet?.connected?'ok':'warn'
-      )}
-
-      ${health(
-        'WireGuard Germany',
-        isOnline(amnezia)
-          ? `handshake ${amnezia.last_handshake ?? '—'} сек. · ${amnezia.remote_endpoint||'—'}`
-          : 'VPN отключён',
-        isOnline(amnezia)?'ok':'warn'
-      )}
-
-      ${health(
-        'WARP',
-        isOnline(warp)?'подключён':'выключен',
-        isOnline(warp)?'ok':'warn'
-      )}
-
-      ${health(
-        'ZeroTier',
-        zerotier?.status==='OK'
-          ? `${zerotier.network_name||'mesh'} · ${zerotier.address||'—'}`
-          : 'соединение отсутствует',
-        zerotier?.status==='OK'?'ok':'warn'
-      )}
-
-      ${health(
-        'AdGuard Home',
-        live?.vms?.find(x=>x.id===105)?.status==='running'
-          ? 'LXC 105 · RUNNING'
-          : 'LXC 105 · STOPPED',
-        live?.vms?.find(x=>x.id===105)?.status==='running'?'ok':'warn'
-      )}
+      ${health('Internet',internet?.connected?`${internet.description||'PPPoE'} · ${internet.address||''}`:'Keenetic · соединение отсутствует',internet?.connected?'ok':'warn')}
+      ${health('WireGuard Germany',isOnline(amnezia)?`handshake ${amnezia.last_handshake ?? '—'} сек. · ${amnezia.remote_endpoint||'—'}`:'VPN отключён',isOnline(amnezia)?'ok':'warn')}
+      ${health('WARP',isOnline(warp)?'подключён':'выключен',isOnline(warp)?'ok':'warn')}
+      ${health('ZeroTier',zerotier?.status==='OK'?`${zerotier.network_name||'mesh'} · ${zerotier.address||'—'}`:'соединение отсутствует',zerotier?.status==='OK'?'ok':'warn')}
+      ${health('AdGuard Home',live?.vms?.find(x=>x.id===105)?.status==='running'?'LXC 105 · RUNNING':'LXC 105 · STOPPED',live?.vms?.find(x=>x.id===105)?.status==='running'?'ok':'warn')}
     </div>
   `;
 }
