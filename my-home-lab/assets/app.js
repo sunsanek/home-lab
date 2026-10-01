@@ -4,24 +4,120 @@ const data={
 };
 const demo={cpu:18,ram:43,temp:57,storage:82,uptime:'17 дн. 06 ч.',vpnPing:42,ha:37,backup:'18 ч. назад'};
 let live=null;
-function storagePercent(){return live?.storage?.['/Storage']?.used_percent ?? demo.storage;}
-function vmlist(){return live?.vms || [];}
-function serviceStatus(){return live ? 'LIVE' : 'DEMO';}
-function fmtTemp(){return live?.temperature != null ? `${live.temperature}°` : `${demo.temp}°`;}
 const el=s=>document.querySelector(s);
+function storagePercent(path='/Storage'){return live?.storage?.[path]?.used_percent ?? (path==='/'?21:demo.storage);}
+function vmlist(){return live?.vms || [];}
+function runningCount(){return vmlist().filter(x=>x.status==='running').length;}
+function stoppedCount(){return vmlist().filter(x=>x.status!=='running').length;}
+let proxmoxSort={key:'default',dir:1};
+function sortProxmox(key){
+  if(proxmoxSort.key===key) proxmoxSort.dir*=-1;
+  else {proxmoxSort.key=key; proxmoxSort.dir=1;}
+  render();
+}
+function sortArrow(key){
+  if(proxmoxSort.key!=='default' && proxmoxSort.key===key) return proxmoxSort.dir===1?' ↑':' ↓';
+  return '';
+}
+function sortedVms(){
+  const rows=vmlist().slice();
+  if(proxmoxSort.key==='default'){
+    return rows.sort((a,b)=>
+      (a.status==='running'?0:1)-(b.status==='running'?0:1) ||
+      Number(a.id)-Number(b.id)
+    );
+  }
+  const key=proxmoxSort.key, dir=proxmoxSort.dir;
+  return rows.sort((a,b)=>{
+    let av,bv;
+    if(key==='id'){av=Number(a.id)||0;bv=Number(b.id)||0;}
+    else if(key==='name'){av=String(a.name||'').toLowerCase();bv=String(b.name||'').toLowerCase();}
+    else if(key==='type'){av=String(a.type||'').toLowerCase();bv=String(b.type||'').toLowerCase();}
+    else if(key==='status'){av=a.status==='running'?1:0;bv=b.status==='running'?1:0;}
+    else if(key==='cpu'){av=Number(a.cpu)||0;bv=Number(b.cpu)||0;}
+    else if(key==='mem'){av=Number(a.mem_gb)||0;bv=Number(b.mem_gb)||0;}
+    return (av< bv ? -1 : av>bv ? 1 : 0) * dir;
+  });
+}
+function fmtTemp(){return live?.temperature != null ? `${live.temperature}°C` : `${demo.temp}°C`;}
 function stat(title,value,sub,status='ok'){return `<div class="card stat"><div class="stat-top"><span>${title}</span><span class="status ${status==='ok'?'':status}">${status==='ok'?'ONLINE':status==='warn'?'ВНИМАНИЕ':'ОШИБКА'}</span></div><div class="stat-value">${value}</div><div class="muted" style="font-size:11px;margin-top:5px">${sub}</div></div>`}
 function health(name,desc,status='ok'){return `<div class="health"><div class="health-line"><span class="dot ${status}"></span><strong>${name}</strong></div><small>${desc}</small></div>`}
-function overview(){return `<div class="grid stats">${stat('Proxmox',`${live?.cpu ?? demo.cpu}%`,'CPU load')}${stat('RAM',`${live?.ram ?? demo.ram}%`,'использование')}${stat('Storage',`${storagePercent()}%`,'/Storage','warn')}${stat('VPN Germany',`${demo.vpnPing} ms`,'latency')}</div><div class="grid two" style="margin-top:14px"><div class="card hero"><div><div class="eyebrow">SYSTEM HEALTH</div><h2>Инфраструктура работает</h2><p>${live ? 'Данные получены с Proxmox agent.' : 'Тестовый режим. Подключи Proxmox agent, чтобы получать реальные данные.'}</p></div><div class="hero-badge">● ${live ? 'LIVE' : 'DEMO'}</div></div><div class="card"><div class="section-title" style="margin-top:0">Быстрый доступ</div><div class="actions"><button class="action" onclick="go('proxmox')">Proxmox</button><button class="action" onclick="go('network')">VPN</button><button class="action" onclick="go('smart')">Умный дом</button><button class="action" onclick="go('backup')">Бэкапы</button><button class="action" onclick="go('ai')">AI Hub</button></div></div></div><div class="section-title">Состояние сервисов</div><div class="card health-list">${health('Proxmox','VM 113 · LXC 102 · Storage')}${health('Home Assistant',`${demo.ha} устройства`)}${health('Immich','Server · ML · Postgres')}${health('AdGuard Home','DNS filtering')}${health('WireGuard','Germany VPS')}${health('Zigbee','Sonoff Bridge')}${health('eWeLink','Cloud integration')}${health('Google Drive','rclone mount','warn')}</div><div class="section-title">Ресурсы</div><div class="grid three"><div class="card"><div class="stat-top"><span>CPU</span><span>${live?.cpu ?? demo.cpu}%</span></div><div class="meter"><span style="width:${live?.cpu ?? demo.cpu}%"></span></div></div><div class="card"><div class="stat-top"><span>RAM</span><span>${live?.ram ?? demo.ram}%</span></div><div class="meter"><span style="width:${live?.ram ?? demo.ram}%"></span></div></div><div class="card"><div class="stat-top"><span>Storage</span><span>${storagePercent()}%</span></div><div class="meter"><span style="width:${storagePercent()}%"></span></div></div></div>`}
-function proxmox(){const rows=vmlist();const vmRows=rows.length?rows.map(r=>`<tr><td>${r.id??''}</td><td>${r.name??''}</td><td>${r.type??''}</td><td><span class="pill ${r.status==='running'?'':'warn'}">${String(r.status||'unknown').toUpperCase()}</span></td><td>${r.type==='lxc'?'LXC':'VM'}</td></tr>`).join(''):`<tr><td>113</td><td>haos</td><td>VM</td><td><span class="pill">ONLINE</span></td><td>Home Assistant</td></tr><tr><td>102</td><td>immich</td><td>LXC</td><td><span class="pill">ONLINE</span></td><td>Immich + Docker</td></tr><tr><td>111</td><td>astra</td><td>VM</td><td><span class="pill warn">STOPPED</span></td><td>резервная система</td></tr>`;return `<div class="notice">${live?'Данные с Proxmox agent · обновляются автоматически.':'Сейчас отображаются демонстрационные данные. После подключения агента здесь будут реальные показатели.'}</div><div class="grid stats">${stat('CPU',`${live?.cpu ?? demo.cpu}%`,'host load')}${stat('RAM',`${live?.ram ?? demo.ram}%`,'host memory')}${stat('Температура',fmtTemp(),'mini PC')}${stat('Uptime',live?.uptime ?? demo.uptime,'host')}</div><div class="section-title">Виртуальные машины и контейнеры</div><div class="card"><table class="table"><thead><tr><th>ID</th><th>Имя</th><th>Тип</th><th>Состояние</th><th>Назначение</th></tr></thead><tbody>${vmRows}</tbody></table></div><div class="section-title">Storage</div><div class="card"><div class="row"><span>/Storage</span><strong>${storagePercent()}%</strong></div><div class="meter"><span style="width:${storagePercent()}%"></span></div>${live?.storage?.['/Storage']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB</span></div>`:''}<div class="row"><span>Immich / thumbs</span><span class="muted">mount point</span></div><div class="row"><span>local-lvm</span><span class="muted">VM/LXC disks</span></div></div>`}
-function network(){return `<div class="grid stats">${stat('VPN Germany',demo.vpnPing+' ms','WireGuard')}${stat('VPN Home','18 ms','WireGuard')}${stat('DNS','OK','AdGuard Home')}${stat('ZeroTier','ONLINE','mesh')}</div><div class="section-title">Маршрутизация</div><div class="card"><table class="table"><thead><tr><th>Назначение</th><th>Маршрут</th><th>Состояние</th></tr></thead><tbody><tr><td>YouTube</td><td>VPN 1</td><td><span class="pill">OK</span></td></tr><tr><td>ChatGPT</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Telegram</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Остальной трафик</td><td>DIRECT</td><td><span class="pill">OK</span></td></tr></tbody></table></div><div class="section-title">Диагностика</div><div class="card health-list">${health('WireGuard DE','handshake 42 ms')}${health('WireGuard Home','handshake 18 ms')}${health('AdGuard','DNS response OK')}${health('ZeroTier','network online')}</div>`}
-function smart(){return `<div class="grid stats">${stat('Устройства',demo.ha,'Home Assistant')}${stat('Свет','8 / 12','включено')}${stat('Zigbee','ONLINE','Sonoff Bridge')}${stat('eWeLink','ONLINE','cloud')}</div><div class="section-title">Дом</div><div class="card health-list">${health('Home Assistant','главный контроллер')}${health('Zigbee','Sonoff Zigbee Bridge')}${health('eWeLink','Sonoff LAN / cloud')}${health('Яндекс','умные устройства')}</div><div class="section-title">Быстрые действия</div><div class="card actions"><button class="action">Выключить свет</button><button class="action">Включить ночной режим</button><button class="action">Перезапустить Zigbee</button><button class="action">Открыть Home Assistant</button></div>`}
-function backup(){return `<div class="grid stats">${stat('Google Drive','OK','rclone')}${stat('Последний backup',demo.backup,'требует внимания','warn')}${stat('Кэш','40 GB','vfs cache')}${stat('Takeout','есть','архивы')}</div><div class="section-title">История</div><div class="card"><div class="event"><time>03:04</time><span class="dot ok bullet"></span><div><p>Backup завершён</p><small>Google Drive · rclone</small></div></div><div class="event"><time>02:51</time><span class="dot ok bullet"></span><div><p>Immich thumbs синхронизированы</p><small>/Storage/Immich/thumbs</small></div></div><div class="event"><time>01:12</time><span class="dot warn bullet"></span><div><p>Большой файл требует повторной проверки</p><small>25 GB · Google Drive</small></div></div></div>`}
-function docker(){return `<div class="grid stats">${stat('Containers','8 / 8','running')}${stat('Immich','3 / 3','healthy')}${stat('Postgres','ONLINE','database')}${stat('ML','ONLINE','machine learning')}</div><div class="section-title">Контейнеры</div><div class="card"><table class="table"><thead><tr><th>Контейнер</th><th>Состояние</th><th>Назначение</th></tr></thead><tbody><tr><td>immich_server</td><td><span class="pill">healthy</span></td><td>Immich</td></tr><tr><td>immich_machine_learning</td><td><span class="pill">healthy</span></td><td>ML</td></tr><tr><td>immich_postgres</td><td><span class="pill">healthy</span></td><td>PostgreSQL</td></tr><tr><td>portainer</td><td><span class="pill">running</span></td><td>Docker management</td></tr></tbody></table></div>`}
+function pct(value){return Math.max(0,Math.min(100,Number(value)||0));}
+function serviceRows(){
+  const running=runningCount();
+  return [
+    health('Proxmox',`${live?.host||'pve'} · ${running} из ${vmlist().length} VM/LXC запущено`),
+    health('Home Assistant',live?.vms?.find(x=>x.id===113)?.status==='running'?'VM 113 · haos · RUNNING':'VM 113 · haos · STOPPED',live?.vms?.find(x=>x.id===113)?.status==='running'?'ok':'warn'),
+    health('AdGuard Home',live?.vms?.find(x=>x.id===105)?.status==='running'?'LXC 105 · RUNNING':'LXC 105 · STOPPED',live?.vms?.find(x=>x.id===105)?.status==='running'?'ok':'warn'),
+    health('rclone',live?.vms?.find(x=>x.id===112)?.status==='running'?'LXC 112 · RUNNING':'LXC 112 · STOPPED',live?.vms?.find(x=>x.id===112)?.status==='running'?'ok':'warn'),
+    health('Pulse',live?.vms?.find(x=>x.id===114)?.status==='running'?'LXC 114 · RUNNING':'LXC 114 · STOPPED',live?.vms?.find(x=>x.id===114)?.status==='running'?'ok':'warn'),
+    health('WireGuard','Germany VPS · проверка будет подключена следующим этапом'),
+    health('Zigbee','Sonoff Bridge · Home Assistant'),
+    health('Google Drive','rclone · проверка будет подключена следующим этапом','warn')
+  ].join('');
+}
+function overview(){
+  const cpu=live?.cpu??demo.cpu, ram=live?.ram??demo.ram, storage=storagePercent();
+  return `<div class="grid stats">${stat('Proxmox',`${cpu}%`,'CPU load')}${stat('RAM',`${ram}%`,'использование')}${stat('Storage',`${storage}%`,'/Storage',storage>=80?'warn':'ok')}${stat('Температура',fmtTemp(),live?'Beelink / Proxmox':'mini PC')}</div>
+  <div class="grid two" style="margin-top:14px"><div class="card hero"><div><div class="eyebrow">SYSTEM HEALTH</div><h2>${live?'Инфраструктура подключена':'Инфраструктура работает'}</h2><p>${live?`Реальные данные с ${live.host||'Proxmox'} · обновляются каждую минуту.`:'Тестовый режим.'}</p></div><div class="hero-badge">● ${live?'LIVE':'DEMO'}</div></div><div class="card"><div class="section-title" style="margin-top:0">Быстрый доступ</div><div class="actions"><button class="action" onclick="go('proxmox')">Proxmox</button><button class="action" onclick="go('network')">VPN</button><button class="action" onclick="go('smart')">Умный дом</button><button class="action" onclick="go('backup')">Бэкапы</button><button class="action" onclick="go('ai')">AI Hub</button></div></div></div>
+  <div class="section-title">Состояние сервисов</div><div class="card health-list">${serviceRows()}</div>
+  <div class="section-title">Ресурсы Proxmox</div><div class="grid three"><div class="card"><div class="stat-top"><span>CPU</span><span>${cpu}%</span></div><div class="meter"><span style="width:${pct(cpu)}%"></span></div></div><div class="card"><div class="stat-top"><span>RAM</span><span>${ram}%</span></div><div class="meter"><span style="width:${pct(ram)}%"></span></div></div><div class="card"><div class="stat-top"><span>/Storage</span><span>${storage}%</span></div><div class="meter"><span style="width:${pct(storage)}%"></span></div></div></div>
+  <div class="section-title">Хост</div><div class="card"><div class="row"><span>Hostname</span><strong>${live?.host||'pve'}</strong></div><div class="row"><span>Uptime</span><span class="muted">${live?.uptime||demo.uptime}</span></div><div class="row"><span>Корневой диск</span><span class="muted">${live?.storage?.['/']?.used_gb??'—'} / ${live?.storage?.['/']?.total_gb??'—'} GB · ${storagePercent('/')}%</span></div><div class="row"><span>Последнее обновление</span><span class="muted">${live?.updated_at?new Date(live.updated_at).toLocaleString('ru-RU'):'—'}</span></div></div>`;
+}
+function proxmox(){
+  const rows=sortedVms();
+  const vmRows=rows.length?rows.map(r=>`<tr>
+    <td>${r.id??''}</td>
+    <td><strong>${r.name??''}</strong></td>
+    <td>${r.type??''}</td>
+    <td><span class="pill ${r.status==='running'?'':'warn'}">${r.status==='running'?'RUNNING':'STOPPED'}</span></td>
+    <td>${r.status==='running'?`${r.cpu??0}% CPU · ${r.mem_gb??0} / ${r.maxmem_gb??0} GB`: '—'}</td>
+  </tr>`).join(''):`<tr><td colspan="5" class="empty">Нет данных</td></tr>`;
+  return `<div class="notice ${live?'live-notice':''}">${live?`LIVE · ${live.host||'pve'} · данные поступают от агента каждые 60 секунд.`:'Сейчас отображаются демонстрационные данные.'}</div>
+  <div class="grid stats">${stat('CPU',`${live?.cpu??demo.cpu}%`,'host load')}${stat('RAM',`${live?.ram??demo.ram}%`,'host memory')}${stat('Температура',fmtTemp(),'mini PC')}${stat('Uptime',live?.uptime??demo.uptime,'host')}</div>
+  <div class="grid three" style="margin-top:14px">${stat('Запущено',runningCount(),`из ${vmlist().length||'—'} VM/LXC`)}${stat('Остановлено',stoppedCount(),'VM/LXC',stoppedCount()>0?'warn':'ok')}${stat('/Storage',`${storagePercent()}%`,live?.storage?.['/Storage']?`${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB`:'storage')}</div>
+  <div class="section-title">Виртуальные машины и контейнеры</div>
+  <div class="card">
+    <div class="table-hint">Нажми на заголовок столбца для сортировки. Повторное нажатие меняет направление.</div>
+    <table class="table sortable-table">
+      <thead><tr>
+        <th class="sortable" onclick="sortProxmox('id')">ID<span class="sort-arrow">${sortArrow('id')}</span></th>
+        <th class="sortable" onclick="sortProxmox('name')">Имя<span class="sort-arrow">${sortArrow('name')}</span></th>
+        <th class="sortable" onclick="sortProxmox('type')">Тип<span class="sort-arrow">${sortArrow('type')}</span></th>
+        <th class="sortable" onclick="sortProxmox('status')">Состояние<span class="sort-arrow">${sortArrow('status')}</span></th>
+        <th class="sortable" onclick="sortProxmox('cpu')">Ресурсы / CPU<span class="sort-arrow">${sortArrow('cpu')}</span></th>
+      </tr></thead>
+      <tbody>${vmRows}</tbody>
+    </table>
+  </div>
+  <div class="section-title">Storage</div><div class="grid two"><div class="card"><div class="row"><span>/Storage</span><strong>${storagePercent()}%</strong></div><div class="meter"><span style="width:${pct(storagePercent())}%"></span></div>${live?.storage?.['/Storage']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/Storage'].used_gb} / ${live.storage['/Storage'].total_gb} GB</span></div>`:''}</div><div class="card"><div class="row"><span>/</span><strong>${storagePercent('/')}%</strong></div><div class="meter"><span style="width:${pct(storagePercent('/'))}%"></span></div>${live?.storage?.['/']?`<div class="row"><span>Занято</span><span class="muted">${live.storage['/'].used_gb} / ${live.storage['/'].total_gb} GB</span></div>`:''}</div></div>`;
+}
+
+function network(){return `<div class="grid stats">${stat('VPN Germany',demo.vpnPing+' ms','WireGuard')}${stat('VPN Home','18 ms','WireGuard')}${stat('DNS','OK','AdGuard Home')}${stat('ZeroTier','ONLINE','mesh')}</div><div class="notice">Сетевые проверки пока статические. Следующим этапом подключим реальные ping/handshake и доступность сервисов.</div><div class="section-title">Маршрутизация</div><div class="card"><table class="table"><thead><tr><th>Назначение</th><th>Маршрут</th><th>Состояние</th></tr></thead><tbody><tr><td>YouTube</td><td>VPN 1</td><td><span class="pill">OK</span></td></tr><tr><td>ChatGPT</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Telegram</td><td>VPN 2</td><td><span class="pill">OK</span></td></tr><tr><td>Остальной трафик</td><td>DIRECT</td><td><span class="pill">OK</span></td></tr></tbody></table></div><div class="section-title">Диагностика</div><div class="card health-list">${health('WireGuard DE','проверка будет подключена')}${health('WireGuard Home','проверка будет подключена')}${health('AdGuard','LXC 105 · running')}${health('ZeroTier','проверка будет подключена')}</div>`}
+function smart(){return `<div class="grid stats">${stat('Устройства',demo.ha,'Home Assistant')}${stat('Свет','8 / 12','включено')}${stat('Zigbee','ONLINE','Sonoff Bridge')}${stat('eWeLink','ONLINE','cloud')}</div><div class="notice">Home Assistant пока не подключён к панели. Следующим этапом получим реальные устройства, температуры, свет и Zigbee.</div><div class="section-title">Дом</div><div class="card health-list">${health('Home Assistant','VM 113 · главный контроллер')}${health('Zigbee','Sonoff Zigbee Bridge')}${health('eWeLink','Sonoff LAN / cloud')}${health('Яндекс','умные устройства')}</div><div class="section-title">Быстрые действия</div><div class="card actions"><button class="action">Выключить свет</button><button class="action">Включить ночной режим</button><button class="action">Перезапустить Zigbee</button><button class="action">Открыть Home Assistant</button></div>`}
+function backup(){return `<div class="grid stats">${stat('Google Drive','OK','rclone')}${stat('Последний backup',demo.backup,'требует внимания','warn')}${stat('Кэш','40 GB','vfs cache')}${stat('Takeout','есть','архивы')}</div><div class="notice">Бэкапы пока не подключены к мониторингу. Сделаем отдельный агент для rclone без передачи содержимого файлов.</div><div class="section-title">История</div><div class="card"><div class="event"><time>03:04</time><span class="dot ok bullet"></span><div><p>Backup завершён</p><small>Google Drive · rclone</small></div></div><div class="event"><time>02:51</time><span class="dot ok bullet"></span><div><p>Immich thumbs синхронизированы</p><small>/Storage/Immich/thumbs</small></div></div></div>`}
+function docker(){return `<div class="grid stats">${stat('Docker','на LXC 102','будет подключён')}${stat('Immich','3 / 3','healthy')}${stat('Postgres','ONLINE','database')}${stat('ML','ONLINE','machine learning')}</div><div class="notice">Docker API пока не передаётся агентом. Подключим его отдельно, чтобы не давать панели права управления контейнерами.</div><div class="section-title">Ожидаемые контейнеры</div><div class="card"><table class="table"><thead><tr><th>Контейнер</th><th>Состояние</th><th>Назначение</th></tr></thead><tbody><tr><td>immich_server</td><td><span class="pill">healthy</span></td><td>Immich</td></tr><tr><td>immich_machine_learning</td><td><span class="pill">healthy</span></td><td>ML</td></tr><tr><td>immich_postgres</td><td><span class="pill">healthy</span></td><td>PostgreSQL</td></tr><tr><td>portainer</td><td><span class="pill">running</span></td><td>Docker management</td></tr></tbody></table></div>`}
 function ai(){let cards=[['✦','ChatGPT','анализ, код, диагностика'],['◈','Claude','тексты и документы'],['◇','Gemini','поиск и multimodal'],['⊙','Perplexity','исследование'],['◆','DeepSeek','код и reasoning'],['◎','Grok','поиск и задачи']];return `<div class="card hero"><div><div class="eyebrow">AI TOOLBOX</div><h2>Мои нейросети</h2><p>Единая точка входа и библиотека готовых промптов.</p></div></div><div class="section-title">Инструменты</div><div class="grid three">${cards.map(c=>`<div class="card ai-card"><div class="ai-icon">${c[0]}</div><strong>${c[1]}</strong><div class="muted" style="font-size:11px;margin-top:6px">${c[2]}</div></div>`).join('')}</div><div class="section-title">Готовые промпты</div><div class="card"><div class="row"><span>Диагностика Linux</span><button class="action">Копировать</button></div><div class="row"><span>Proxmox: анализ вывода команд</span><button class="action">Копировать</button></div><div class="row"><span>Home Assistant: создать automation</span><button class="action">Копировать</button></div><div class="row"><span>WireGuard: проверить конфигурацию</span><button class="action">Копировать</button></div></div>`}
 function knowledge(){return `<div class="card"><input class="search" placeholder="Поиск по моей базе знаний…" /></div><div class="section-title">Разделы</div><div class="grid two"><div class="card"><div class="knowledge-item"><strong>Proxmox</strong><p>VM, LXC, Storage, ZFS, уменьшение дисков</p></div><div class="knowledge-item"><strong>Network</strong><p>Keenetic, WireGuard, ZeroTier, DNS, AdGuard</p></div><div class="knowledge-item"><strong>Smart Home</strong><p>Home Assistant, Zigbee, eWeLink, Яндекс</p></div></div><div class="card"><div class="knowledge-item"><strong>Servers</strong><p>VPS, Docker, Immich, rclone</p></div><div class="knowledge-item"><strong>Backups</strong><p>Google Drive, rclone, восстановление</p></div><div class="knowledge-item"><strong>Hardware</strong><p>мини-ПК, диски, температура, SMART</p></div></div></div>`}
-function events(){return `<div class="card"><div class="event"><time>20:58</time><span class="dot ok bullet"></span><div><p>VPN Germany отвечает</p><small>42 ms</small></div></div><div class="event"><time>20:41</time><span class="dot warn bullet"></span><div><p>Storage выше 80%</p><small>/Storage · ${storagePercent()}%</small></div></div><div class="event"><time>20:12</time><span class="dot ok bullet"></span><div><p>Home Assistant доступен</p><small>${demo.ha} устройств</small></div></div><div class="event"><time>19:48</time><span class="dot ok bullet"></span><div><p>Immich containers healthy</p><small>server · ML · postgres</small></div></div></div>`}
+function events(){return `<div class="notice">Журнал событий станет реальным после подключения истории метрик. Сейчас отображаются только подготовленные записи.</div><div class="card"><div class="event"><time>сейчас</time><span class="dot ok bullet"></span><div><p>Proxmox agent передал данные</p><small>${live?.host||'pve'} · CPU ${live?.cpu??'—'}% · RAM ${live?.ram??'—'}%</small></div></div><div class="event"><time>сейчас</time><span class="dot ${storagePercent()>=80?'warn':'ok'} bullet"></span><div><p>/Storage ${storagePercent()}%</p><small>${live?.storage?.['/Storage']?.used_gb??'—'} / ${live?.storage?.['/Storage']?.total_gb??'—'} GB</small></div></div><div class="event"><time>сейчас</time><span class="dot ok bullet"></span><div><p>Home Lab API работает</p><small>D1 · Pages Functions · LIVE</small></div></div></div>`}
 const pages={overview,proxmox,network,smart,backup,docker,ai,knowledge,events};
-async function loadLive(){try{const r=await fetch('/api/status',{cache:'no-store'});const j=await r.json();if(j.live){live=j;document.querySelector('.sidebar-bottom').innerHTML='<span class="dot ok"></span> LIVE <button id="refreshBtn" class="mini-btn">↻</button>';bindRefresh();go(location.hash.slice(1)||'overview');}else{document.querySelector('.sidebar-bottom').innerHTML='<span class="dot warn"></span> DEMO <button id="refreshBtn" class="mini-btn">↻</button>';bindRefresh();}}catch(e){}}
-function bindRefresh(){const b=el('#refreshBtn');if(b)b.onclick=()=>{loadLive();el('#lastUpdate').textContent='обновление…';};}
-function go(name){document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===name));el('#pageTitle').textContent=data[name].title;el('#page').innerHTML=pages[name]();history.replaceState(null,'','#'+name);}
-document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>go(b.dataset.page));bindRefresh();el('#themeBtn').onclick=()=>document.body.classList.toggle('light');window.go=go;const initial=location.hash.slice(1);go(pages[initial]?initial:'overview');loadLive();setInterval(loadLive,60000);
+function bindRefresh(){const b=el('#refreshBtn');if(b)b.onclick=()=>loadLive();}
+function render(){const name=location.hash.slice(1);const page=pages[name]?name:'overview';document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===page));el('#pageTitle').textContent=data[page].title;el('#page').innerHTML=pages[page]();el('#lastUpdate').textContent=live?.updated_at?`обновлено ${new Date(live.updated_at).toLocaleTimeString('ru-RU')}`:'обновление…';}
+function go(name){history.replaceState(null,'','#'+name);render();}
+async function loadLive(){
+  try{
+    const r=await fetch('/api/status',{cache:'no-store'});
+    const j=await r.json();
+    live=j.live?j:null;
+    const bottom=el('.sidebar-bottom');
+    if(bottom){bottom.innerHTML=`<span class="dot ${live?'ok':'warn'}"></span> ${live?'LIVE':'DEMO'} <button id="refreshBtn" class="mini-btn">↻</button>`;bindRefresh();}
+    render();
+  }catch(e){
+    live=null;render();
+  }
+}
+document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>go(b.dataset.page));
+el('#themeBtn').onclick=()=>document.body.classList.toggle('light');
+window.go=go;
+window.sortProxmox=sortProxmox;
+render();loadLive();setInterval(loadLive,60000);

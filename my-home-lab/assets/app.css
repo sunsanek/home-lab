@@ -4,3 +4,10 @@
 @media(max-width:560px){.stats{grid-template-columns:1fr}.health-list{grid-template-columns:1fr}.topbar h1{font-size:20px}.page{padding:15px}.card{padding:15px}}
 /* v2 live-data additions */
 .notice{border-color:rgba(255,193,7,.25)}
+.live-notice{border-left-color:var(--ok);background:#101c17;color:#b9d8ca}
+.table td strong{color:#eef2f7}
+
+.sortable-table th.sortable{cursor:pointer;user-select:none;white-space:nowrap;transition:background .15s}
+.sortable-table th.sortable:hover{background:rgba(255,255,255,.04)}
+.sort-arrow{display:inline-block;width:14px;margin-left:5px;color:#8ea2ff;font-weight:700}
+.table-hint{font-size:11px;color:var(--muted);padding:0 0 10px}
