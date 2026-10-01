@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="description" content="Личная панель домашней инфраструктуры" />
+  <title>My Home Lab</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">⌂</span><div><strong>MY HOME LAB</strong><small>Infrastructure panel</small></div></div>
+      <nav id="nav">
+        <button class="nav-item active" data-page="overview">⌂ <span>Обзор</span></button>
+        <button class="nav-item" data-page="proxmox">▣ <span>Proxmox</span></button>
+        <button class="nav-item" data-page="network">⌁ <span>Сеть и VPN</span></button>
+        <button class="nav-item" data-page="smart">⌘ <span>Умный дом</span></button>
+        <button class="nav-item" data-page="backup">↥ <span>Бэкапы</span></button>
+        <button class="nav-item" data-page="docker">◫ <span>Docker</span></button>
+        <button class="nav-item" data-page="ai">✦ <span>AI Hub</span></button>
+        <button class="nav-item" data-page="knowledge">☷ <span>База знаний</span></button>
+        <button class="nav-item" data-page="events">◷ <span>Журнал</span></button>
+      </nav>
+      <div class="sidebar-bottom"><span class="dot ok"></span> Demo mode <button id="refreshBtn" class="mini-btn">↻</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><div class="eyebrow">PERSONAL NOC</div><h1 id="pageTitle">Обзор</h1></div>
+        <div class="top-actions"><span class="last-update" id="lastUpdate">обновлено только что</span><button class="icon-btn" id="themeBtn" title="Переключить тему">☼</button></div>
+      </header>
+      <section id="page" class="page"></section>
+    </main>
+  </div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
